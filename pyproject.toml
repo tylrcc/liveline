@@ -1,0 +1,41 @@
+[project]
+name = "liveline"
+version = "0.1.0"
+description = "Live translated subtitles for anything you watch or listen to."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "tylrcc" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26,<2.3",
+    "sounddevice>=0.4.6",
+    "faster-whisper>=1.0.0",
+    "deep-translator>=1.11.4",
+    "argostranslate>=1.9.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "websockets>=12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+gui = []
+
+[project.scripts]
+liveline = "liveline.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["liveline*"]
+
+[tool.setuptools.package-data]
+liveline = ["web/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: hits the network translation endpoint",
+]

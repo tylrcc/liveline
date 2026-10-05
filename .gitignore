@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.DS_Store
+models/
+*.pt
+*.bin
+reports/
+data/*.wav
+data/*.mp3
+data/*.mp4
+data/*.mkv
+!data/.gitkeep
