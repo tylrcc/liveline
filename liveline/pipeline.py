@@ -21,12 +21,15 @@ def _make_overlay(kind: str, bilingual: bool, host: str, port: int):
         ov.start()
         sinks.append(ov)
     if kind in ("web", "both"):
-        from .server import WebOverlay
+        from .server import AppServer
         import time as _time
-        web = WebOverlay(host, port)
+        web = AppServer(host, port)
         web.start()
-        _time.sleep(0.4)
-        print(f"browser overlay: {web.url}", file=sys.stderr)
+        try:
+            web.wait_ready(timeout=20)
+        except TimeoutError:
+            _time.sleep(0.6)
+        print(f"browser overlay: {web.overlay_url}", file=sys.stderr)
         sinks.append(web)
     return sinks
 

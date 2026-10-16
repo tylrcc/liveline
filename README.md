@@ -1,131 +1,96 @@
 # liveline
 
-Live translated subtitles for anything you watch or listen to.
+Live translated subtitles for anything you watch.
 
-Point it at system audio while a Korean or Chinese drama plays, or drop in a
-video file. Whisper listens, a translator rewrites the line, and an always-on-top
-overlay (or browser page) shows the caption.
-
-```bash
-pip install -e .
-liveline drama --lang ko          # system audio, Korean → English
-liveline drama --lang zh          # Chinese drama
-liveline file episode.mp4 --from ko --to en --srt out.srt
-liveline mic --from ja --to en    # headphones / mic
-```
-
-Works with dramas, YouTube, local files, and (with lower accuracy) songs.
-
-## How it works
-
-```
-audio in  →  Whisper (ASR)  →  translate  →  overlay
-```
-
-| Mode | What it captures |
-|---|---|
-| `liveline drama` / `live` | System audio via BlackHole (macOS) or Stereo Mix / VB-Cable (Windows) |
-| `liveline mic` | Default microphone |
-| `liveline file` | Any video/audio ffmpeg can read |
-
-Display options: desktop overlay window, browser page at `http://127.0.0.1:8765/overlay`
-(OBS browser source friendly), or both.
-
-## Setup
-
-### 1. Install
-
-Needs Python 3.10+ and [ffmpeg](https://ffmpeg.org/) on your PATH.
+Open the app, press **Start subtitles**, play a Korean or Chinese drama (or
+anything else), and read the captions in the floating window.
 
 ```bash
-git clone https://github.com/tylrcc/liveline
-cd liveline
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+# easiest while developing
+./Liveline.command
+
+# or
+pip install -e ".[gui]"
+liveline
 ```
 
-The first run downloads a Whisper model (`base` by default, ~150 MB).
+## Download the Mac app
 
-### 2. Route system audio (for live dramas)
+Build a double-clickable app and DMG on your Mac:
 
-**macOS**
+```bash
+./scripts/build_macos.sh
+```
+
+That writes:
+
+- `dist/Liveline.app`
+- `dist/Liveline-0.2.0-macos.dmg`
+
+Drag `Liveline.app` into Applications, open it, press Start.
+
+> First launch downloads a Whisper model (~75 to 150 MB). The Mac app translates
+> online by default. For fully offline translation when installing from source:
+> `pip install -e ".[offline]"`.
+
+## How to use it
+
+1. Open Liveline.
+2. Pick the spoken language (Korean / Chinese / Japanese / Auto).
+3. Pick subtitle language (English by default).
+4. Choose **What I am watching** for system audio, or Microphone.
+5. Press **Start subtitles**.
+6. Play your show. Captions appear in the overlay window.
+
+### One-time system audio setup (Mac)
+
+To caption Netflix, Viki, YouTube, local players, and games, Liveline needs to
+hear your Mac's output:
 
 1. Install [BlackHole 2ch](https://existential.audio/blackhole/).
-2. Open Audio MIDI Setup → create a Multi-Output Device with your speakers and BlackHole.
-3. Set that Multi-Output as the system output so you can still hear the show.
-4. Confirm BlackHole shows up:
+2. Open **Audio MIDI Setup** → create a **Multi-Output Device** with your
+   speakers/headphones **and** BlackHole.
+3. Set that Multi-Output as the system sound output so you still hear the show.
+4. In Liveline, press **Recheck audio**, then **Start**.
+
+Windows users: enable Stereo Mix, or install [VB-Audio Cable](https://vb-audio.com/Cable/).
+
+The app detects this for you and shows the setup steps if audio is missing.
+
+## What works well
+
+| Content | Expectation |
+|---|---|
+| Dramas, movies, interviews, lectures | Strong |
+| YouTube / browser videos via system audio | Strong |
+| Clear singing | Mixed |
+| Heavy music beds / overlapping talk | Weaker |
+
+Use **Accurate** quality for harder audio. **Fast** is best on older machines.
+
+## Terminal commands (optional)
 
 ```bash
-liveline devices
-```
-
-**Windows**
-
-Enable Stereo Mix, or install [VB-Audio Cable](https://vb-audio.com/Cable/), then pick it with `liveline devices`.
-
-### 3. Watch
-
-```bash
-# Korean drama → English overlay
-liveline drama --lang ko
-
-# Chinese drama, larger model, bilingual overlay + browser page
-liveline drama --lang zh --model small --overlay both
-```
-
-Play the episode in your browser or player. Captions appear in the floating
-window. Drag to reposition. Esc closes it.
-
-## File mode
-
-Generate captions (and an `.srt`) for a downloaded episode:
-
-```bash
-liveline file drama.mkv --from ko --to en --model small --srt drama.en.srt --overlay none
-```
-
-## Songs
-
-Speech-to-text on music is harder: beats and harmony confuse the model. It can
-still catch clear vocals, especially with `--model small` or `medium`, but do
-not expect karaoke-perfect lyrics. Dramas and talk tracks work much better.
-
-## Options
-
-```
---from ko|zh|ja|en|auto     source language (drama preset sets this)
---to en                     target language
---model tiny|base|small|…   Whisper size (base is the default tradeoff)
---chunk 3.0                 seconds of audio per pass
---overlay window|web|both|none
---mono                      hide the original line, show translation only
---device cpu|cuda|auto
+liveline                     # open the app
+liveline devices             # list audio inputs
+liveline file show.mkv --from ko --to en --srt show.en.srt
+liveline drama --lang zh     # CLI live mode
 ```
 
 ## Privacy
 
-Audio is processed on your machine by Whisper. Translation prefers **Argos
-Translate** (offline language packs, installed on first use for ko→en / zh→en).
-If Argos is missing a pair it falls back to Google, then MyMemory. No audio is
-uploaded for recognition.
+Speech recognition runs locally (Whisper). Translation uses an online fallback
+by default in the Mac app. Install `.[offline]` for Argos packs that never leave
+your machine.
 
-## Layout
-
-```
-liveline/
-  audio.py       mic / loopback / file decode
-  asr.py         faster-whisper
-  translate.py   language normalize + translator
-  overlay.py     always-on-top window
-  server.py      browser / OBS overlay
-  pipeline.py    glue
-  cli.py
-```
+## Develop
 
 ```bash
-make test
-make demo    # synthesizes a short Korean clip and captions it
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev,gui]"
+pytest -q -m "not integration"
+liveline app
 ```
 
 MIT.

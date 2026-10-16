@@ -1,4 +1,5 @@
 .venv/
+.venv-app/
 __pycache__/
 *.pyc
 *.egg-info/
@@ -15,3 +16,5 @@ data/*.mp3
 data/*.mp4
 data/*.mkv
 !data/.gitkeep
+*.spec.bak
+packaging/*.toc

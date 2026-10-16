@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Liveline</title>
+<style>
+  :root {
+    --bg: #0c0d10;
+    --panel: #15171c;
+    --line: #2a2e37;
+    --text: #f3f4f6;
+    --muted: #9ca3af;
+    --accent: #5b8cff;
+    --good: #34d399;
+    --warn: #fbbf24;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; color: var(--text);
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background:
+      radial-gradient(900px 420px at 10% -10%, rgba(91,140,255,.18), transparent 55%),
+      radial-gradient(700px 380px at 100% 0%, rgba(52,211,153,.08), transparent 50%),
+      var(--bg);
+  }
+  .wrap { max-width: 440px; margin: 0 auto; padding: 28px 20px 40px; }
+  header { margin-bottom: 22px; }
+  .brand { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  h1 { margin: 6px 0 0; font-size: 28px; font-weight: 650; letter-spacing: -.02em; }
+  .sub { margin-top: 6px; color: var(--muted); }
+  .card {
+    background: color-mix(in srgb, var(--panel) 92%, black);
+    border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-top: 14px;
+  }
+  label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  select, button, .field {
+    width: 100%; border-radius: 10px; border: 1px solid var(--line);
+    background: #0f1115; color: var(--text); padding: 11px 12px; font: inherit;
+  }
+  select:focus, button:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 1px; }
+  .actions { display: grid; grid-template-columns: 1.4fr .8fr; gap: 10px; margin-top: 16px; }
+  #start {
+    background: var(--accent); border-color: transparent; color: white; font-weight: 650;
+    cursor: pointer;
+  }
+  #start.running { background: #374151; }
+  #stop { cursor: pointer; }
+  #stop:disabled { opacity: .4; cursor: default; }
+  .status {
+    display: flex; align-items: center; gap: 8px; margin-top: 14px;
+    padding: 10px 12px; border-radius: 10px; background: #0f1115; border: 1px solid var(--line);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #6b7280; }
+  .dot.on { background: var(--good); box-shadow: 0 0 0 4px rgba(52,211,153,.15); }
+  .dot.load { background: var(--warn); }
+  .dot.err { background: var(--bad); }
+  .caption {
+    margin-top: 14px; min-height: 88px; padding: 14px; border-radius: 12px;
+    background: #090a0c; border: 1px solid var(--line);
+  }
+  .caption .tr { font-size: 18px; font-weight: 600; line-height: 1.35; }
+  .caption .or { margin-top: 8px; color: var(--muted); font-size: 13px; }
+  .hint { margin-top: 10px; color: var(--muted); font-size: 12px; }
+  .setup { display: none; margin-top: 14px; }
+  .setup.show { display: block; }
+  .setup ol { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+  .setup a { color: var(--accent); }
+  .checks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .pill {
+    font-size: 12px; padding: 5px 9px; border-radius: 999px;
+    border: 1px solid var(--line); color: var(--muted);
+  }
+  .pill.ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 35%, var(--line)); }
+  .pill.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 35%, var(--line)); }
+  .links { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .links button {
+    width: auto; background: transparent; cursor: pointer; padding: 8px 10px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="brand">Liveline</div>
+      <h1>Live subtitles</h1>
+      <div class="sub">Put translated captions on anything you are watching.</div>
+    </header>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <label for="source">Audio source</label>
+          <select id="source">
+            <option value="system">What I am watching (system audio)</option>
+            <option value="mic">Microphone</option>
+          </select>
+        </div>
+        <div>
+          <label for="model">Quality</label>
+          <select id="model">
+            <option value="tiny">Fast</option>
+            <option value="base" selected>Balanced</option>
+            <option value="small">Accurate</option>
+          </select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label for="from">Spoken language</label>
+          <select id="from">
+            <option value="ko" selected>Korean</option>
+            <option value="zh">Chinese</option>
+            <option value="ja">Japanese</option>
+            <option value="en">English</option>
+            <option value="auto">Auto detect</option>
+          </select>
+        </div>
+        <div>
+          <label for="to">Subtitle language</label>
+          <select id="to">
+            <option value="en" selected>English</option>
+            <option value="ko">Korean</option>
+            <option value="zh-CN">Chinese</option>
+            <option value="ja">Japanese</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="start" type="button">Start subtitles</button>
+        <button id="stop" type="button" disabled>Stop</button>
+      </div>
+
+      <div class="status">
+        <span class="dot" id="dot"></span>
+        <span id="statusText">Ready</span>
+      </div>
+
+      <div class="checks">
+        <span class="pill" id="loopPill">Checking audio…</span>
+        <span class="pill" id="modelPill">Model: balanced</span>
+      </div>
+
+      <div class="setup" id="setup">
+        <strong>One-time audio setup (Mac)</strong>
+        <ol>
+          <li>Install <a href="https://existential.audio/blackhole/" target="_blank" rel="noreferrer">BlackHole 2ch</a>.</li>
+          <li>Open Audio MIDI Setup and create a Multi-Output Device with your speakers + BlackHole.</li>
+          <li>Set that Multi-Output as your Mac speakers, so you still hear the show.</li>
+          <li>Come back here and press Start.</li>
+        </ol>
+        <div class="links">
+          <button type="button" id="openBlackhole">Open BlackHole site</button>
+          <button type="button" id="refreshAudio">Recheck audio</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card caption">
+      <div class="tr" id="tr">Subtitles will appear here.</div>
+      <div class="or" id="or"></div>
+    </div>
+    <div class="hint">Tip: keep the floating caption window on top of your drama. Drag it anywhere.</div>
+    <div class="links">
+      <button type="button" id="openOverlay">Open caption window</button>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const startBtn = $('start');
+  const stopBtn = $('stop');
+  let timer = null;
+
+  async function api(path, opts) {
+    const res = await fetch(path, Object.assign({ headers: { 'Content-Type': 'application/json' } }, opts || {}));
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    return res.json();
+  }
+
+  function render(st) {
+    const dot = $('dot');
+    dot.className = 'dot';
+    if (st.error) { dot.classList.add('err'); $('statusText').textContent = st.error; }
+    else if (st.loading) { dot.classList.add('load'); $('statusText').textContent = 'Loading model… first run can take a minute'; }
+    else if (st.running) { dot.classList.add('on'); $('statusText').textContent = 'Listening to ' + (st.device_name || 'audio'); }
+    else { $('statusText').textContent = 'Ready'; }
+
+    startBtn.disabled = st.running || st.loading;
+    stopBtn.disabled = !(st.running || st.loading);
+    startBtn.classList.toggle('running', st.running);
+    startBtn.textContent = st.running ? 'Running…' : (st.loading ? 'Starting…' : 'Start subtitles');
+
+    const loop = $('loopPill');
+    if (st.loopback_ok) {
+      loop.textContent = 'System audio ready';
+      loop.className = 'pill ok';
+      $('setup').classList.remove('show');
+    } else {
+      loop.textContent = 'System audio not set up';
+      loop.className = 'pill bad';
+      if ($('source').value === 'system') $('setup').classList.add('show');
+      else $('setup').classList.remove('show');
+    }
+    $('modelPill').textContent = 'Model: ' + st.model;
+    if (st.last_translated || st.last_original) {
+      $('tr').textContent = st.last_translated || st.last_original;
+      $('or').textContent = st.last_translated ? st.last_original : '';
+    }
+  }
+
+  async function refresh() {
+    try { render(await api('/api/status')); }
+    catch (e) { $('statusText').textContent = String(e.message || e); }
+  }
+
+  startBtn.onclick = async () => {
+    try {
+      const body = {
+        source: $('source').value,
+        source_lang: $('from').value,
+        target_lang: $('to').value,
+        model: $('model').value,
+        bilingual: true,
+      };
+      render(await api('/api/start', { method: 'POST', body: JSON.stringify(body) }));
+      window.open('/overlay', 'liveline-overlay', 'width=960,height=180');
+    } catch (e) {
+      $('statusText').textContent = String(e.message || e);
+      $('dot').className = 'dot err';
+    }
+  };
+
+  stopBtn.onclick = async () => { render(await api('/api/stop', { method: 'POST', body: '{}' })); };
+  $('source').onchange = () => refresh();
+  $('refreshAudio').onclick = () => refresh();
+  $('openBlackhole').onclick = () => window.open('https://existential.audio/blackhole/', '_blank');
+  $('openOverlay').onclick = () => window.open('/overlay', 'liveline-overlay', 'width=960,height=180');
+
+  refresh();
+  timer = setInterval(refresh, 1000);
+
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  function connectWs() {
+    const ws = new WebSocket(proto + '://' + location.host + '/ws');
+    ws.onmessage = (e) => {
+      const d = JSON.parse(e.data);
+      $('tr').textContent = d.translated || d.original || '';
+      $('or').textContent = d.translated ? (d.original || '') : '';
+    };
+    ws.onclose = () => setTimeout(connectWs, 1200);
+  }
+  connectWs();
+</script>
+</body>
+</html>

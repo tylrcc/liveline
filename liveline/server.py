@@ -1,57 +1,21 @@
-"""Local web overlay for browsers / OBS browser source."""
+"""Desktop app HTTP API, control panel, and caption overlay."""
 from __future__ import annotations
 
 import asyncio
 import json
 import threading
+from dataclasses import asdict
 from pathlib import Path
-from typing import Callable
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 
+from .audio import find_loopback_device
+from .session import LiveSession, SessionConfig
 from .types import Caption
 
-OVERLAY_HTML = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>liveline</title>
-<style>
-  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
-  #wrap { position: fixed; left: 0; right: 0; bottom: 8%; display: flex; justify-content: center; pointer-events: none; }
-  #card { max-width: 90vw; padding: 14px 22px; border-radius: 10px; background: rgba(0,0,0,.72);
-    text-align: center; backdrop-filter: blur(6px); }
-  #tr { color: #fff; font-size: clamp(18px, 3.2vw, 36px); font-weight: 650; line-height: 1.3; }
-  #or { color: #9ca3af; font-size: clamp(12px, 1.8vw, 18px); margin-top: 6px; line-height: 1.35; }
-  #status { position: fixed; top: 12px; right: 14px; color: #6b7280; font-size: 12px; }
-</style>
-</head>
-<body>
-  <div id="status">connecting…</div>
-  <div id="wrap"><div id="card"><div id="tr">listening…</div><div id="or"></div></div></div>
-  <script>
-    const tr = document.getElementById('tr');
-    const or = document.getElementById('or');
-    const st = document.getElementById('status');
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    function connect() {
-      const ws = new WebSocket(proto + '://' + location.host + '/ws');
-      ws.onopen = () => st.textContent = 'live';
-      ws.onclose = () => { st.textContent = 'reconnecting…'; setTimeout(connect, 1000); };
-      ws.onmessage = (e) => {
-        const d = JSON.parse(e.data);
-        tr.textContent = d.translated || d.original || '';
-        or.textContent = d.translated ? (d.original || '') : '';
-      };
-    }
-    connect();
-  </script>
-</body>
-</html>
-"""
+WEB = Path(__file__).parent / "web"
 
 
 class CaptionHub:
@@ -65,11 +29,7 @@ class CaptionHub:
         async with self._lock:
             self._clients.add(ws)
         if self.latest:
-            await ws.send_text(json.dumps({
-                "original": self.latest.original,
-                "translated": self.latest.translated,
-                "language": self.latest.language,
-            }))
+            await ws.send_text(_cap_json(self.latest))
 
     async def disconnect(self, ws: WebSocket) -> None:
         async with self._lock:
@@ -77,11 +37,7 @@ class CaptionHub:
 
     async def publish(self, caption: Caption) -> None:
         self.latest = caption
-        payload = json.dumps({
-            "original": caption.original,
-            "translated": caption.translated,
-            "language": caption.language,
-        })
+        payload = _cap_json(caption)
         async with self._lock:
             dead = []
             for ws in self._clients:
@@ -93,42 +49,116 @@ class CaptionHub:
                 self._clients.discard(ws)
 
 
-def create_app(hub: CaptionHub) -> FastAPI:
-    app = FastAPI(title="liveline")
+def _cap_json(caption: Caption) -> str:
+    return json.dumps({
+        "original": caption.original,
+        "translated": caption.translated,
+        "language": caption.language,
+    })
+
+
+class StartBody(BaseModel):
+    source: str = "system"
+    device_index: int | None = None
+    source_lang: str = "ko"
+    target_lang: str = "en"
+    model: str = "base"
+    bilingual: bool = True
+    chunk_seconds: float = Field(default=2.5, ge=1.0, le=8.0)
+
+
+def create_app(session: LiveSession | None = None, hub: CaptionHub | None = None) -> FastAPI:
+    hub = hub or CaptionHub()
+    session = session or LiveSession(on_caption=lambda c: _schedule_publish(hub, c))
+
+    app = FastAPI(title="Liveline", version="0.2.0")
+    app.state.hub = hub
+    app.state.session = session
 
     @app.get("/")
-    async def index():
-        return HTMLResponse(OVERLAY_HTML)
+    async def home():
+        return FileResponse(WEB / "app.html")
 
     @app.get("/overlay")
     async def overlay():
-        return HTMLResponse(OVERLAY_HTML)
+        return FileResponse(WEB / "overlay.html")
+
+    @app.get("/api/status")
+    async def status():
+        return asdict(session.snapshot())
+
+    @app.get("/api/devices")
+    async def devices():
+        return {"devices": session.devices()}
+
+    @app.post("/api/start")
+    async def start(body: StartBody):
+        if body.source == "system" and find_loopback_device() is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No system audio device found. Install BlackHole 2ch on Mac "
+                    "(or VB-Cable / Stereo Mix on Windows), route your speakers "
+                    "through it, then try again."
+                ),
+            )
+        st = session.start(SessionConfig(
+            source=body.source,
+            device_index=body.device_index,
+            source_lang=body.source_lang,
+            target_lang=body.target_lang,
+            model=body.model,
+            chunk_seconds=body.chunk_seconds,
+            bilingual=body.bilingual,
+        ))
+        return asdict(st)
+
+    @app.post("/api/stop")
+    async def stop():
+        return asdict(session.stop())
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket):
         await hub.connect(ws)
         try:
             while True:
-                await ws.receive_text()  # keep alive / ignore client msgs
+                await ws.receive_text()
         except WebSocketDisconnect:
             await hub.disconnect(ws)
 
     return app
 
 
-class WebOverlay:
-    """Runs uvicorn in a daemon thread and exposes a sync `show()`."""
+_loop_ref: dict[str, asyncio.AbstractEventLoop] = {}
+
+
+def _schedule_publish(hub: CaptionHub, caption: Caption) -> None:
+    loop = _loop_ref.get("loop")
+    if loop and loop.is_running():
+        asyncio.run_coroutine_threadsafe(hub.publish(caption), loop)
+
+
+class AppServer:
+    """Runs uvicorn + LiveSession for the desktop app."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8765):
         self.host = host
         self.port = port
         self.hub = CaptionHub()
-        self._loop: asyncio.AbstractEventLoop | None = None
+        self.session = LiveSession(on_caption=self._on_caption)
+        self.app = create_app(self.session, self.hub)
         self._thread: threading.Thread | None = None
 
     @property
     def url(self) -> str:
+        return f"http://{self.host}:{self.port}/"
+
+    @property
+    def overlay_url(self) -> str:
         return f"http://{self.host}:{self.port}/overlay"
+
+    def _on_caption(self, caption: Caption) -> None:
+        _schedule_publish(self.hub, caption)
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -137,16 +167,29 @@ class WebOverlay:
     def _run(self) -> None:
         import uvicorn
 
-        self._loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self._loop)
-        config = uvicorn.Config(create_app(self.hub), host=self.host, port=self.port, log_level="warning")
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        _loop_ref["loop"] = loop
+        config = uvicorn.Config(self.app, host=self.host, port=self.port, log_level="warning")
         server = uvicorn.Server(config)
-        self._loop.run_until_complete(server.serve())
+        loop.run_until_complete(server.serve())
+
+    def wait_ready(self, timeout: float = 15.0) -> None:
+        import time
+        import urllib.request
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                with urllib.request.urlopen(self.url, timeout=0.5) as r:
+                    if r.status == 200:
+                        return
+            except Exception:
+                time.sleep(0.1)
+        raise TimeoutError("Liveline server did not start")
 
     def show(self, caption: Caption) -> None:
-        if self._loop is None:
-            return
-        asyncio.run_coroutine_threadsafe(self.hub.publish(caption), self._loop)
+        self._on_caption(caption)
 
     def close(self) -> None:
-        pass
+        self.session.stop()

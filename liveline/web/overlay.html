@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Liveline Captions</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  #wrap {
+    position: fixed; left: 0; right: 0; bottom: 10%;
+    display: flex; justify-content: center; pointer-events: none;
+    padding: 0 24px;
+  }
+  #card {
+    max-width: min(920px, 92vw);
+    padding: 16px 24px;
+    border-radius: 14px;
+    background: rgba(0,0,0,.78);
+    text-align: center;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 10px 40px rgba(0,0,0,.35);
+  }
+  #tr {
+    color: #fff;
+    font-size: clamp(20px, 3.4vw, 40px);
+    font-weight: 650;
+    line-height: 1.28;
+    letter-spacing: -.01em;
+  }
+  #or {
+    color: #9ca3af;
+    font-size: clamp(13px, 1.7vw, 18px);
+    margin-top: 8px;
+    line-height: 1.35;
+  }
+  #status {
+    position: fixed; top: 10px; right: 14px;
+    color: rgba(255,255,255,.45); font-size: 11px;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+  <div id="status">connecting</div>
+  <div id="wrap">
+    <div id="card">
+      <div id="tr">Waiting for speech…</div>
+      <div id="or"></div>
+    </div>
+  </div>
+  <script>
+    const tr = document.getElementById('tr');
+    const or = document.getElementById('or');
+    const st = document.getElementById('status');
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    function connect() {
+      const ws = new WebSocket(proto + '://' + location.host + '/ws');
+      ws.onopen = () => { st.textContent = 'live'; };
+      ws.onclose = () => { st.textContent = 'reconnecting'; setTimeout(connect, 1000); };
+      ws.onmessage = (e) => {
+        const d = JSON.parse(e.data);
+        tr.textContent = d.translated || d.original || '';
+        or.textContent = d.translated ? (d.original || '') : '';
+      };
+    }
+    connect();
+  </script>
+</body>
+</html>

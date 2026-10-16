@@ -1,0 +1,29 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Build app
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -U pip
+          .venv/bin/pip install -e ".[dev,gui]"
+          bash scripts/build_macos.sh
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Liveline-macos
+          path: |
+            dist/Liveline.app
+            dist/*.dmg

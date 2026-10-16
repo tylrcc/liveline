@@ -10,10 +10,10 @@ from . import __version__
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="liveline",
-        description="Live translated subtitles for dramas, videos, and songs.",
+        description="Live translated subtitles for anything you watch or listen to.",
     )
     parser.add_argument("--version", action="version", version=f"liveline {__version__}")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    sub = parser.add_subparsers(dest="cmd")
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--from", dest="source_lang", default="ko",
@@ -23,12 +23,17 @@ def main(argv: list[str] | None = None) -> int:
     common.add_argument("--model", default="base",
                         help="whisper size: tiny, base, small, medium, large-v3 (default: base)")
     common.add_argument("--device", default="auto", help="cpu, cuda, or auto")
-    common.add_argument("--chunk", type=float, default=3.0, help="seconds of audio per pass")
-    common.add_argument("--overlay", choices=["window", "web", "both", "none"], default="window")
-    common.add_argument("--port", type=int, default=8765, help="web overlay port")
+    common.add_argument("--chunk", type=float, default=2.5, help="seconds of audio per pass")
+    common.add_argument("--overlay", choices=["window", "web", "both", "none"], default="web")
+    common.add_argument("--port", type=int, default=8765, help="app / overlay port")
     common.add_argument("--mono", action="store_true", help="show translation only, hide original")
 
-    p = sub.add_parser("live", parents=[common], help="caption system audio (BlackHole / Stereo Mix)")
+    app_p = sub.add_parser("app", help="open the Liveline desktop app (default)")
+    app_p.add_argument("--host", default="127.0.0.1")
+    app_p.add_argument("--port", type=int, default=8765)
+    app_p.add_argument("--no-browser", action="store_true")
+
+    p = sub.add_parser("live", parents=[common], help="caption system audio from the terminal")
     p.add_argument("--device-index", type=int, help="force a sounddevice input index")
 
     sub.add_parser("mic", parents=[common], help="caption the default microphone")
@@ -45,6 +50,15 @@ def main(argv: list[str] | None = None) -> int:
                    help="drama language (default: ko)")
 
     args = parser.parse_args(argv)
+    if args.cmd is None:
+        args.cmd = "app"
+        args.host = "127.0.0.1"
+        args.port = 8765
+        args.no_browser = False
+
+    if args.cmd == "app":
+        from .app import run
+        return run(host=args.host, port=args.port, open_browser=not args.no_browser)
 
     if args.cmd == "devices":
         from .pipeline import print_devices
@@ -63,9 +77,9 @@ def main(argv: list[str] | None = None) -> int:
         target_lang=getattr(args, "target_lang", "en"),
         model=getattr(args, "model", "base"),
         device=getattr(args, "device", "auto"),
-        chunk_seconds=getattr(args, "chunk", 3.0),
+        chunk_seconds=getattr(args, "chunk", 2.5),
         bilingual=not getattr(args, "mono", False),
-        overlay=getattr(args, "overlay", "window"),
+        overlay=getattr(args, "overlay", "web"),
         port=getattr(args, "port", 8765),
     )
     pipe = Pipeline(settings)
