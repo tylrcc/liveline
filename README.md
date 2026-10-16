@@ -14,20 +14,23 @@ pip install -e ".[gui]"
 liveline
 ```
 
-## Download the Mac app
+## Install (one line)
 
-Build a double-clickable app and DMG on your Mac:
+```bash
+curl -fsSL https://raw.githubusercontent.com/tylrcc/liveline/main/scripts/install.sh | bash
+```
+
+That downloads the latest Mac release, puts `Liveline.app` in `/Applications`, and opens it.
+
+Or grab the DMG from [Releases](https://github.com/tylrcc/liveline/releases/latest).
+
+### Build from this repo
 
 ```bash
 ./scripts/build_macos.sh
 ```
 
-That writes:
-
-- `dist/Liveline.app`
-- `dist/Liveline-0.2.0-macos.dmg`
-
-Drag `Liveline.app` into Applications, open it, press Start.
+Writes `dist/Liveline.app` and `dist/Liveline-0.2.0-macos.dmg`.
 
 > First launch downloads a Whisper model (~75 to 150 MB). The Mac app translates
 > online by default. For fully offline translation when installing from source:
